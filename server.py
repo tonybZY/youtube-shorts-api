@@ -13,7 +13,7 @@ app = Flask(__name__)
 CORS(app)
 
 # Configuration
-API_KEY = os.environ.get('API_KEY', 'your-secure-api-key-here')
+API_KEY = os.environ.get('API_KEY', 'sk_prod_2025_youtube_shorts_secure_key_xyz789')
 BASE_URL = os.environ.get('BASE_URL', 'https://your-app.up.railway.app')
 TEMP_DIR = os.environ.get('TEMP_DIR', '/tmp')
 
