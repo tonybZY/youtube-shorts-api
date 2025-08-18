@@ -8,6 +8,8 @@ import yt_dlp
 import uuid
 from datetime import datetime
 import tempfile
+import time
+import random
 
 app = Flask(__name__)
 CORS(app)
@@ -19,6 +21,13 @@ TEMP_DIR = os.environ.get('TEMP_DIR', '/tmp')
 
 # Stockage temporaire des URLs de vidéos
 VIDEO_STORAGE = {}
+
+# User agents pour éviter la détection
+USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+]
 
 @app.route('/')
 def home():
@@ -66,68 +75,126 @@ def download_video():
         # Générer un ID unique pour cette vidéo
         video_id = str(uuid.uuid4())
         
-        # Configuration yt-dlp
+        # Ajouter un délai aléatoire pour éviter la détection
+        time.sleep(random.uniform(1, 3))
+        
+        # Configuration yt-dlp améliorée
         ydl_opts = {
             'format': 'best[ext=mp4]/best',
             'outtmpl': os.path.join(TEMP_DIR, f'{video_id}.%(ext)s'),
             'quiet': True,
             'no_warnings': True,
             'extract_flat': False,
+            # Options anti-détection
+            'user_agent': random.choice(USER_AGENTS),
+            'referer': 'https://www.youtube.com/',
+            'add_header': [
+                'Accept-Language: en-US,en;q=0.9',
+                'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            ],
+            # Contournements
+            'extractor_args': {
+                'youtube': {
+                    'player_skip': ['configs', 'initial'],
+                    'player_client': ['android', 'web'],
+                    'skip': ['dash', 'hls']
+                }
+            },
+            # Options supplémentaires
+            'nocheckcertificate': True,
+            'ignoreerrors': False,
+            'logtostderr': False,
+            'quiet': True,
+            'no_warnings': True,
+            'default_search': 'auto',
+            'source_address': '0.0.0.0',
+            # Simuler un navigateur
+            'simulate': True,
+            'sleep_interval': 1,
+            'max_sleep_interval': 3,
         }
         
-        # Extraire les infos de la vidéo
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            print(f"[INFO] Extraction des infos pour: {video_url}")
-            info = ydl.extract_info(video_url, download=False)
-            
-            # Infos importantes
-            video_info = {
-                "title": info.get('title', 'Sans titre'),
-                "duration": info.get('duration', 0),
-                "channel": info.get('channel', 'Inconnu'),
-                "upload_date": info.get('upload_date', ''),
-                "view_count": info.get('view_count', 0),
-                "like_count": info.get('like_count', 0),
-                "description": info.get('description', '')[:500],  # Limiter la description
-                "thumbnail": info.get('thumbnail', ''),
-                "video_id": video_id
-            }
-            
-            # Télécharger la vidéo
-            print(f"[INFO] Téléchargement de: {video_info['title']}")
-            ydl.download([video_url])
-            
-            # Trouver le fichier téléchargé
-            downloaded_file = None
-            for ext in ['mp4', 'webm', 'mkv']:
-                file_path = os.path.join(TEMP_DIR, f'{video_id}.{ext}')
-                if os.path.exists(file_path):
-                    downloaded_file = file_path
-                    break
-            
-            if not downloaded_file:
-                return jsonify({"error": "Échec du téléchargement"}), 500
-            
-            # Obtenir la taille du fichier
-            file_size = os.path.getsize(downloaded_file)
-            
-            # Stocker les infos
-            VIDEO_STORAGE[video_id] = {
-                "file_path": downloaded_file,
-                "info": video_info,
-                "downloaded_at": datetime.now().isoformat(),
-                "file_size_mb": round(file_size / (1024 * 1024), 2)
-            }
-            
-            # Retourner les infos
-            return jsonify({
-                "success": True,
-                "video_id": video_id,
-                "video_info": video_info,
-                "file_size_mb": round(file_size / (1024 * 1024), 2),
-                "message": f"Vidéo téléchargée avec succès: {video_info['title']}",
-                "next_step": "Utilisez /process-short avec ce video_id pour créer des shorts"
-            })
+        # Essayer plusieurs fois si nécessaire
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Extraire les infos de la vidéo
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    print(f"[INFO] Tentative {attempt + 1}/{max_retries} - Extraction des infos pour: {video_url}")
+                    info = ydl.extract_info(video_url, download=False)
+                    
+                    # Infos importantes
+                    video_info = {
+                        "title": info.get('title', 'Sans titre'),
+                        "duration": info.get('duration', 0),
+                        "channel": info.get('channel', 'Inconnu'),
+                        "upload_date": info.get('upload_date', ''),
+                        "view_count": info.get('view_count', 0),
+                        "like_count": info.get('like_count', 0),
+                        "description": info.get('description', '')[:500],
+                        "thumbnail": info.get('thumbnail', ''),
+                        "video_id": video_id
+                    }
+                    
+                    # Télécharger la vidéo
+                    print(f"[INFO] Téléchargement de: {video_info['title']}")
+                    ydl.download([video_url])
+                    
+                    # Trouver le fichier téléchargé
+                    downloaded_file = None
+                    for ext in ['mp4', 'webm', 'mkv', 'm4a', '3gp']:
+                        file_path = os.path.join(TEMP_DIR, f'{video_id}.{ext}')
+                        if os.path.exists(file_path):
+                            downloaded_file = file_path
+                            break
+                    
+                    if not downloaded_file:
+                        if attempt < max_retries - 1:
+                            print(f"[WARNING] Tentative {attempt + 1} échouée, nouvel essai...")
+                            time.sleep(5)
+                            continue
+                        else:
+                            return jsonify({"error": "Échec du téléchargement après plusieurs tentatives"}), 500
+                    
+                    # Obtenir la taille du fichier
+                    file_size = os.path.getsize(downloaded_file)
+                    
+                    # Stocker les infos
+                    VIDEO_STORAGE[video_id] = {
+                        "file_path": downloaded_file,
+                        "info": video_info,
+                        "downloaded_at": datetime.now().isoformat(),
+                        "file_size_mb": round(file_size / (1024 * 1024), 2)
+                    }
+                    
+                    # Retourner les infos
+                    return jsonify({
+                        "success": True,
+                        "video_id": video_id,
+                        "video_info": video_info,
+                        "file_size_mb": round(file_size / (1024 * 1024), 2),
+                        "message": f"Vidéo téléchargée avec succès: {video_info['title']}",
+                        "next_step": "Utilisez /process-short avec ce video_id pour créer des shorts"
+                    })
+                    
+            except Exception as e:
+                if "Sign in to confirm" in str(e):
+                    print(f"[WARNING] Détection anti-bot, tentative {attempt + 1}/{max_retries}")
+                    if attempt < max_retries - 1:
+                        time.sleep(10)  # Attendre plus longtemps
+                        continue
+                    else:
+                        return jsonify({
+                            "error": "YouTube demande une vérification anti-bot",
+                            "details": "Essayez avec une autre vidéo ou réessayez plus tard",
+                            "tips": [
+                                "Utilisez une vidéo plus récente",
+                                "Évitez les vidéos très populaires",
+                                "Réessayez dans quelques minutes"
+                            ]
+                        }), 429
+                else:
+                    raise e
     
     except yt_dlp.utils.DownloadError as e:
         print(f"[ERROR] Erreur yt-dlp: {str(e)}")
@@ -223,6 +290,8 @@ if __name__ == '__main__':
     print("   POST /download - Télécharger une vidéo YouTube")
     print("   GET  /status   - Voir les vidéos téléchargées")
     print("   POST /test     - Tester la connexion")
+    print("="*60)
+    print("🛡️  Protection anti-bot activée")
     print("="*60)
     
     app.run(host='0.0.0.0', port=port, debug=True)
