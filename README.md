@@ -1,14 +1,14 @@
-# YouTube Shorts Automation API
+# YouTube Shorts API
 
 API pour automatiser la création de YouTube Shorts avec n8n.
 
-## 🚀 Déploiement sur Railway
+## 🚀 Installation Rapide
 
-1. **Fork ce repository** sur GitHub
+```bash
+# Cloner le repo
+git clone https://github.com/VOTRE-USERNAME/youtube-shorts-api.git
+cd youtube-shorts-api
 
-2. **Créer un nouveau projet sur Railway**
-   - Connectez votre GitHub
-   - Sélectionnez ce repository
-   - Railway détectera automatiquement le Dockerfile
-
-3. **Configurer les variables d'environnement** dans Railway :
+# Installer
+chmod +x install.sh
+./install.sh
